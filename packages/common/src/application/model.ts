@@ -82,6 +82,22 @@ export const modelMetadata: Record<string, ModelMetadata> = {
     flags: MODEL_FEATURE.TEXT_DOC_IMAGE_REASONING,
     displayName: 'Claude Opus 4',
   },
+  'global.anthropic.claude-sonnet-4-5-20250929-v1:0': {
+    flags: MODEL_FEATURE.TEXT_DOC_IMAGE_REASONING,
+    displayName: 'Claude Sonnet 4.5',
+  },
+  'us.anthropic.claude-sonnet-4-5-20250929-v1:0': {
+    flags: MODEL_FEATURE.TEXT_DOC_IMAGE_REASONING,
+    displayName: 'Claude Sonnet 4.5',
+  },
+  'eu.anthropic.claude-sonnet-4-5-20250929-v1:0': {
+    flags: MODEL_FEATURE.TEXT_DOC_IMAGE_REASONING,
+    displayName: 'Claude Sonnet 4.5',
+  },
+  'jp.anthropic.claude-sonnet-4-5-20250929-v1:0': {
+    flags: MODEL_FEATURE.TEXT_DOC_IMAGE_REASONING,
+    displayName: 'Claude Sonnet 4.5',
+  },
   'global.anthropic.claude-sonnet-4-20250514-v1:0': {
     flags: MODEL_FEATURE.TEXT_DOC_IMAGE_REASONING,
     displayName: 'Claude Sonnet 4',
@@ -185,27 +201,6 @@ export const modelMetadata: Record<string, ModelMetadata> = {
       ...MODEL_FEATURE.LIGHT,
     },
     displayName: 'Claude 3 Haiku',
-  },
-  'anthropic.claude-v2:1': {
-    flags: {
-      ...MODEL_FEATURE.TEXT_DOC,
-      ...MODEL_FEATURE.LEGACY,
-    },
-    displayName: 'Claude 2.1',
-  },
-  'anthropic.claude-v2': {
-    flags: {
-      ...MODEL_FEATURE.TEXT_DOC,
-      ...MODEL_FEATURE.LEGACY,
-    },
-    displayName: 'Claude',
-  },
-  'anthropic.claude-instant-v1': {
-    flags: {
-      ...MODEL_FEATURE.TEXT_DOC,
-      ...MODEL_FEATURE.LEGACY,
-    },
-    displayName: 'Claude Instant',
   },
   // Amazon Titan
   'amazon.titan-text-express-v1': {
@@ -418,30 +413,9 @@ export const modelMetadata: Record<string, ModelMetadata> = {
     },
     displayName: 'Stable Diffusion XL',
   },
-  'stability.sd3-large-v1:0': {
-    flags: {
-      ...MODEL_FEATURE.IMAGE_GEN,
-      ...MODEL_FEATURE.LEGACY,
-    },
-    displayName: 'SD3 Large 1.0',
-  },
-  'stability.stable-image-core-v1:0': {
-    flags: {
-      ...MODEL_FEATURE.IMAGE_GEN,
-      ...MODEL_FEATURE.LEGACY,
-    },
-    displayName: 'Stable Image Core v1.0',
-  },
   'stability.stable-image-core-v1:1': {
     flags: MODEL_FEATURE.IMAGE_GEN,
     displayName: 'Stable Image Core v1.1',
-  },
-  'stability.stable-image-ultra-v1:0': {
-    flags: {
-      ...MODEL_FEATURE.IMAGE_GEN,
-      ...MODEL_FEATURE.LEGACY,
-    },
-    displayName: 'Stable Image Ultra v1.0',
   },
   'stability.stable-image-ultra-v1:1': {
     flags: {
@@ -563,4 +537,4 @@ export const SUPPORTED_CACHE_FIELDS: Record<string, PromptCacheField[]> = {
   'amazon.nova-micro-v1:0': ['messages', 'system'],
 };
 
-export const CRI_PREFIX_PATTERN = /^(us|eu|apac)\./;
+export const CRI_PREFIX_PATTERN = /^(global|us|eu|apac|jp)\./;
