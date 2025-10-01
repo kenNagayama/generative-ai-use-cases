@@ -22,8 +22,13 @@ const envs: Record<string, Partial<StackInput>> = {
     agentEnabled: true,
     modelRegion: 'us-west-2',
     modelIds: [
-      'global.anthropic.claude-sonnet-4-20250514-v1:0',
+      {
+        modelId: 'jp.anthropic.claude-sonnet-4-5-20250929-v1:0',
+        region: 'ap-northeast-1',
+      },
       'us.amazon.nova-premier-v1:0',
+      'us.anthropic.claude-opus-4-1-20250805-v1:0',
+      'global.anthropic.claude-sonnet-4-20250514-v1:0',
       'us.anthropic.claude-3-5-haiku-20241022-v1:0',
       'us.meta.llama4-maverick-17b-instruct-v1:0',
       'us.meta.llama4-scout-17b-instruct-v1:0',
