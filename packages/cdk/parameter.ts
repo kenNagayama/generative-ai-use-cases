@@ -22,10 +22,8 @@ const envs: Record<string, Partial<StackInput>> = {
     agentEnabled: true,
     modelRegion: 'us-west-2',
     modelIds: [
-      {
-        modelId: 'jp.anthropic.claude-sonnet-4-5-20250929-v1:0',
-        region: 'ap-northeast-1',
-      },
+      'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+      'us.anthropic.claude-haiku-4-5-20251001-v1:0',
       'us.amazon.nova-premier-v1:0',
       'us.anthropic.claude-opus-4-1-20250805-v1:0',
       'global.anthropic.claude-sonnet-4-20250514-v1:0',
