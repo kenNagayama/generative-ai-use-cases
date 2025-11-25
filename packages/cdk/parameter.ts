@@ -44,6 +44,8 @@ const envs: Record<string, Partial<StackInput>> = {
         displayName: 'Signal Engineer Kanzenni Rikai-Shita',
         agentId: 'E71FXICEN6',
         aliasId: '1JZYTGW94C',
+        description:
+          'An AI agent that believes it has fully understood the Signal Engineer exam',
       },
     ],
     allowedSignUpEmailDomains: ['jreast.co.jp'],
