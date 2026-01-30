@@ -55,7 +55,7 @@ const envs: Record<string, Partial<StackInput>> = {
           'An AI agent that believes it has fully understood the Signal Engineer exam',
       },
     ],
-    allowedSignUpEmailDomains: ['jreast.co.jp'],
+    allowedSignUpEmailDomains: ['jreast.co.jp', 'dicejreg.onmicrosoft.com'],
     allowedCountryCodes: ['JP'],
   },
   dev: {
