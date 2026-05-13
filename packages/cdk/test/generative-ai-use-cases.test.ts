@@ -1,7 +1,20 @@
 import { Template } from 'aws-cdk-lib/assertions';
 import * as cdk from 'aws-cdk-lib';
-import { processedStackInputSchema, StackInput } from '../lib/stack-input';
+import {
+  processedStackInputSchema,
+  stackInputSchema,
+  StackInput,
+} from '../lib/stack-input';
 import { createStacks } from '../lib/create-stacks';
+import {
+  BUNDLING_STACKS,
+  DISABLE_ASSET_STAGING_CONTEXT,
+} from 'aws-cdk-lib/cx-api';
+
+const appContext = {
+  [BUNDLING_STACKS]: [],
+  [DISABLE_ASSET_STAGING_CONTEXT]: true,
+};
 
 describe('GenerativeAiUseCases', () => {
   const stackInput: Partial<StackInput> = {
@@ -68,7 +81,9 @@ describe('GenerativeAiUseCases', () => {
   };
 
   test('matches the snapshot', () => {
-    const app = new cdk.App();
+    const app = new cdk.App({
+      context: appContext,
+    });
 
     const params = processedStackInputSchema.parse(stackInput);
 
@@ -77,7 +92,7 @@ describe('GenerativeAiUseCases', () => {
       ragKnowledgeBaseStack,
       agentStack,
       agentCoreStack,
-      guardrail,
+      guardrailStack,
       generativeAiUseCasesStack,
       dashboardStack,
     } = createStacks(app, params);
@@ -88,7 +103,7 @@ describe('GenerativeAiUseCases', () => {
       !ragKnowledgeBaseStack ||
       !agentStack ||
       !agentCoreStack ||
-      !guardrail ||
+      !guardrailStack ||
       !generativeAiUseCasesStack ||
       !dashboardStack
     ) {
@@ -98,7 +113,7 @@ describe('GenerativeAiUseCases', () => {
     const ragKnowledgeBaseTemplate = Template.fromStack(ragKnowledgeBaseStack);
     const agentTemplate = Template.fromStack(agentStack);
     const agentCoreTemplate = Template.fromStack(agentCoreStack);
-    const guardrailTemplate = Template.fromStack(guardrail);
+    const guardrailTemplate = Template.fromStack(guardrailStack);
     const generativeAiUseCasesTemplate = Template.fromStack(
       generativeAiUseCasesStack
     );
@@ -115,7 +130,9 @@ describe('GenerativeAiUseCases', () => {
   });
 
   test('matches the snapshot (closed network mode)', () => {
-    const app = new cdk.App();
+    const app = new cdk.App({
+      context: appContext,
+    });
 
     const params = processedStackInputSchema.parse({
       ...stackInput,
@@ -127,7 +144,7 @@ describe('GenerativeAiUseCases', () => {
       ragKnowledgeBaseStack,
       agentStack,
       agentCoreStack,
-      guardrail,
+      guardrailStack,
       generativeAiUseCasesStack,
       dashboardStack,
     } = createStacks(app, params);
@@ -138,7 +155,7 @@ describe('GenerativeAiUseCases', () => {
       !ragKnowledgeBaseStack ||
       !agentStack ||
       !agentCoreStack ||
-      !guardrail ||
+      !guardrailStack ||
       !generativeAiUseCasesStack ||
       !dashboardStack
     ) {
@@ -148,7 +165,7 @@ describe('GenerativeAiUseCases', () => {
     const ragKnowledgeBaseTemplate = Template.fromStack(ragKnowledgeBaseStack);
     const agentTemplate = Template.fromStack(agentStack);
     const agentCoreTemplate = Template.fromStack(agentCoreStack);
-    const guardrailTemplate = Template.fromStack(guardrail);
+    const guardrailTemplate = Template.fromStack(guardrailStack);
     const generativeAiUseCasesTemplate = Template.fromStack(
       generativeAiUseCasesStack
     );
@@ -166,7 +183,9 @@ describe('GenerativeAiUseCases', () => {
 
   test('tagKey functionality', () => {
     // Test with custom tagKey
-    const appWithCustomTag = new cdk.App();
+    const appWithCustomTag = new cdk.App({
+      context: appContext,
+    });
     const paramsWithCustomTag = processedStackInputSchema.parse({
       ...stackInput,
       tagKey: 'CustomTag',
@@ -179,7 +198,9 @@ describe('GenerativeAiUseCases', () => {
     );
 
     // Test without tagKey (should use default)
-    const appWithoutTagKey = new cdk.App();
+    const appWithoutTagKey = new cdk.App({
+      context: appContext,
+    });
     const paramsWithoutTagKey = processedStackInputSchema.parse({
       ...stackInput,
       tagKey: null,
@@ -208,5 +229,90 @@ describe('GenerativeAiUseCases', () => {
         },
       });
     }
+  });
+
+  test('matches the snapshot (AgentCore with VPC)', () => {
+    const app = new cdk.App();
+
+    // Simulate parameter.ts computed: isAgentCoreNetworkPrivate is derived
+    // from VPC/Subnet being both provided. Do not set it manually here.
+    const vpcInput = {
+      ...stackInput,
+      agentCoreVpcId: 'vpc-12345678',
+      agentCoreSubnetIds: ['subnet-12345678', 'subnet-87654321'],
+    };
+    const params = processedStackInputSchema.parse({
+      ...vpcInput,
+      isAgentCoreNetworkPrivate: !!(
+        vpcInput.agentCoreVpcId &&
+        vpcInput.agentCoreSubnetIds &&
+        vpcInput.agentCoreSubnetIds.length > 0
+      ),
+    });
+
+    const {
+      cloudFrontWafStack,
+      ragKnowledgeBaseStack,
+      agentStack,
+      agentCoreStack,
+      guardrailStack,
+      generativeAiUseCasesStack,
+      dashboardStack,
+    } = createStacks(app, params);
+
+    // Create Templates
+    if (
+      !cloudFrontWafStack ||
+      !ragKnowledgeBaseStack ||
+      !agentStack ||
+      !agentCoreStack ||
+      !guardrailStack ||
+      !generativeAiUseCasesStack ||
+      !dashboardStack
+    ) {
+      throw new Error('Not all stacks are created');
+    }
+    const agentCoreTemplate = Template.fromStack(agentCoreStack);
+
+    // Assert
+    expect(agentCoreTemplate.toJSON()).toMatchSnapshot();
+  });
+
+  test('AgentCore VPC config requires both vpcId and subnetIds', () => {
+    // Only vpcId is provided -> must fail
+    expect(() =>
+      stackInputSchema.parse({
+        ...stackInput,
+        agentCoreVpcId: 'vpc-12345678',
+        agentCoreSubnetIds: null,
+      })
+    ).toThrow();
+
+    // Only subnetIds is provided -> must fail
+    expect(() =>
+      stackInputSchema.parse({
+        ...stackInput,
+        agentCoreVpcId: null,
+        agentCoreSubnetIds: ['subnet-12345678'],
+      })
+    ).toThrow();
+
+    // Both provided -> must pass
+    expect(() =>
+      stackInputSchema.parse({
+        ...stackInput,
+        agentCoreVpcId: 'vpc-12345678',
+        agentCoreSubnetIds: ['subnet-12345678'],
+      })
+    ).not.toThrow();
+
+    // Neither provided -> must pass (PUBLIC mode)
+    expect(() =>
+      stackInputSchema.parse({
+        ...stackInput,
+        agentCoreVpcId: null,
+        agentCoreSubnetIds: null,
+      })
+    ).not.toThrow();
   });
 });

@@ -7,9 +7,9 @@ import { AgentStack } from './agent-stack';
 import { RagKnowledgeBaseStack } from './rag-knowledge-base-stack';
 import { GuardrailStack } from './guardrail-stack';
 import { AgentCoreStack } from './agent-core-stack';
+import { ResearchAgentCoreStack } from './research-agent-core-stack';
 import { ProcessedStackInput } from './stack-input';
 import { VideoTmpBucketStack } from './video-tmp-bucket-stack';
-import { ApplicationInferenceProfileStack } from './application-inference-profile-stack';
 import { ClosedNetworkStack } from './closed-network-stack';
 
 class DeletionPolicySetter implements cdk.IAspect {
@@ -22,70 +22,7 @@ class DeletionPolicySetter implements cdk.IAspect {
   }
 }
 
-// Merges inference profile ARNs into ModelIds and returns a new array
-const mergeModelIdsAndInferenceProfileArn = (
-  modelIds: ProcessedStackInput['modelIds'],
-  inferenceProfileStacks: Record<string, ApplicationInferenceProfileStack>
-) => {
-  return modelIds.map((modelId) => {
-    const result = { ...modelId };
-    const stack = inferenceProfileStacks[modelId.region];
-    if (stack && stack.inferenceProfileArns[modelId.modelId]) {
-      result.inferenceProfileArn = stack.inferenceProfileArns[modelId.modelId];
-    }
-    return result;
-  });
-};
-
 export const createStacks = (app: cdk.App, params: ProcessedStackInput) => {
-  // Create an ApplicationInferenceProfile for each region of the model to be used
-  const modelRegions = [
-    ...new Set([
-      ...params.modelIds.map((model) => model.region),
-      ...params.imageGenerationModelIds.map((model) => model.region),
-      ...params.videoGenerationModelIds.map((model) => model.region),
-      ...params.speechToSpeechModelIds.map((model) => model.region),
-    ]),
-  ];
-  const inferenceProfileStacks: Record<
-    string,
-    ApplicationInferenceProfileStack
-  > = {};
-  for (const region of modelRegions) {
-    const applicationInferenceProfileStack =
-      new ApplicationInferenceProfileStack(
-        app,
-        `ApplicationInferenceProfileStack${params.env}${region}`,
-        {
-          env: {
-            account: params.account,
-            region,
-          },
-          params,
-        }
-      );
-    inferenceProfileStacks[region] = applicationInferenceProfileStack;
-  }
-
-  // Set inference profile ARNs to model IDs
-  const updatedParams: ProcessedStackInput = JSON.parse(JSON.stringify(params));
-  updatedParams.modelIds = mergeModelIdsAndInferenceProfileArn(
-    params.modelIds,
-    inferenceProfileStacks
-  );
-  updatedParams.imageGenerationModelIds = mergeModelIdsAndInferenceProfileArn(
-    params.imageGenerationModelIds,
-    inferenceProfileStacks
-  );
-  updatedParams.videoGenerationModelIds = mergeModelIdsAndInferenceProfileArn(
-    params.videoGenerationModelIds,
-    inferenceProfileStacks
-  );
-  updatedParams.speechToSpeechModelIds = mergeModelIdsAndInferenceProfileArn(
-    params.speechToSpeechModelIds,
-    inferenceProfileStacks
-  );
-
   // GenU Stack
   const isSageMakerStudio = 'SAGEMAKER_APP_TYPE_LOWERCASE' in process.env;
 
@@ -117,57 +54,52 @@ export const createStacks = (app: cdk.App, params: ProcessedStackInput) => {
     !params.closedNetworkMode
       ? new CloudFrontWafStack(app, `CloudFrontWafStack${params.env}`, {
           env: {
-            account: updatedParams.account,
+            account: params.account,
             region: 'us-east-1',
           },
-          params: updatedParams,
+          params: params,
           crossRegionReferences: true,
         })
       : null;
 
   // RAG Knowledge Base
   const ragKnowledgeBaseStack =
-    updatedParams.ragKnowledgeBaseEnabled && !updatedParams.ragKnowledgeBaseId
-      ? new RagKnowledgeBaseStack(
-          app,
-          `RagKnowledgeBaseStack${updatedParams.env}`,
-          {
-            env: {
-              account: updatedParams.account,
-              region: updatedParams.modelRegion,
-            },
-            params: updatedParams,
-            crossRegionReferences: true,
-          }
-        )
+    params.ragKnowledgeBaseEnabled && !params.ragKnowledgeBaseId
+      ? new RagKnowledgeBaseStack(app, `RagKnowledgeBaseStack${params.env}`, {
+          env: {
+            account: params.account,
+            region: params.modelRegion,
+          },
+          params: params,
+          crossRegionReferences: true,
+        })
       : null;
 
   // Agent
-  if (updatedParams.crossAccountBedrockRoleArn) {
-    if (updatedParams.agentEnabled || updatedParams.searchApiKey) {
+  if (params.crossAccountBedrockRoleArn) {
+    if (params.agentEnabled || params.searchApiKey) {
       throw new Error(
         'When `crossAccountBedrockRoleArn` is specified, the `agentEnabled` and `searchApiKey` parameters are not supported. Please create agents in the other account and specify them in the `agents` parameter.'
       );
     }
   }
-  const agentStack = updatedParams.agentEnabled
-    ? new AgentStack(app, `WebSearchAgentStack${updatedParams.env}`, {
+  const agentStack = params.agentEnabled
+    ? new AgentStack(app, `WebSearchAgentStack${params.env}`, {
         env: {
-          account: updatedParams.account,
-          region: updatedParams.modelRegion,
+          account: params.account,
+          region: params.modelRegion,
         },
-        params: updatedParams,
-        crossRegionReferences: true,
+        params: params,
         vpc: closedNetworkStack?.vpc,
       })
     : null;
 
   // Guardrail
-  const guardrail = updatedParams.guardrailEnabled
-    ? new GuardrailStack(app, `GuardrailStack${updatedParams.env}`, {
+  const guardrailStack = params.guardrailEnabled
+    ? new GuardrailStack(app, `GuardrailStack${params.env}`, {
         env: {
-          account: updatedParams.account,
-          region: updatedParams.modelRegion,
+          account: params.account,
+          region: params.modelRegion,
         },
         crossRegionReferences: true,
       })
@@ -182,29 +114,37 @@ export const createStacks = (app: cdk.App, params: ProcessedStackInput) => {
             region: params.agentCoreRegion,
           },
           params: params,
-          crossRegionReferences: true,
         })
       : null;
+
+  // Research Agent Core Runtime
+  const researchAgentCoreStack = params.researchAgentEnabled
+    ? new ResearchAgentCoreStack(app, `ResearchAgentCoreStack${params.env}`, {
+        env: {
+          account: params.account,
+          region: params.agentCoreRegion,
+        },
+        params: params,
+      })
+    : null;
 
   // Create S3 Bucket for each unique region for StartAsyncInvoke in video generation
   // because the S3 Bucket must be in the same region as Bedrock Runtime
   const videoModelRegions = [
-    ...new Set(
-      updatedParams.videoGenerationModelIds.map((model) => model.region)
-    ),
+    ...new Set(params.videoGenerationModelIds.map((model) => model.region)),
   ];
   const videoBucketRegionMap: Record<string, string> = {};
 
   for (const region of videoModelRegions) {
     const videoTmpBucketStack = new VideoTmpBucketStack(
       app,
-      `VideoTmpBucketStack${updatedParams.env}${region}`,
+      `VideoTmpBucketStack${params.env}${region}`,
       {
         env: {
-          account: updatedParams.account,
+          account: params.account,
           region,
         },
-        params: updatedParams,
+        params: params,
       }
     );
 
@@ -213,31 +153,34 @@ export const createStacks = (app: cdk.App, params: ProcessedStackInput) => {
 
   const generativeAiUseCasesStack = new GenerativeAiUseCasesStack(
     app,
-    `GenerativeAiUseCasesStack${updatedParams.env}`,
+    `GenerativeAiUseCasesStack${params.env}`,
     {
       env: {
-        account: updatedParams.account,
-        region: updatedParams.region,
+        account: params.account,
+        region: params.region,
       },
-      description: updatedParams.anonymousUsageTracking
+      description: params.anonymousUsageTracking
         ? 'Generative AI Use Cases (uksb-1tupboc48)'
         : undefined,
-      params: updatedParams,
+      params: params,
       crossRegionReferences: true,
       // RAG Knowledge Base
       knowledgeBaseId: ragKnowledgeBaseStack?.knowledgeBaseId,
       knowledgeBaseDataSourceBucketName:
         ragKnowledgeBaseStack?.dataSourceBucketName,
-      // Agent
-      agents: agentStack?.agents,
+      agentStack: agentStack || undefined,
+
       // Agent Core
       createGenericAgentCoreRuntime: params.createGenericAgentCoreRuntime,
       agentBuilderEnabled: params.agentBuilderEnabled,
       agentCoreStack: agentCoreStack || undefined,
+      // Research Agent Core
+      researchAgentEnabled: params.researchAgentEnabled,
+      researchAgentCoreStack: researchAgentCoreStack || undefined,
       // Video Generation
       videoBucketRegionMap,
       // Guardrail
-      guardrailIdentifier: guardrail?.guardrailIdentifier,
+      guardrailIdentifier: guardrailStack?.guardrailIdentifier,
       guardrailVersion: 'DRAFT',
       // WAF
       webAclId: cloudFrontWafStack?.webAclArn,
@@ -249,30 +192,48 @@ export const createStacks = (app: cdk.App, params: ProcessedStackInput) => {
       vpc: closedNetworkStack?.vpc,
       apiGatewayVpcEndpoint: closedNetworkStack?.apiGatewayVpcEndpoint,
       webBucket: closedNetworkStack?.webBucket,
-      cognitoUserPoolProxyEndpoint:
-        closedNetworkStack?.cognitoUserPoolProxyApi?.url ?? '',
-      cognitoIdentityPoolProxyEndpoint:
-        closedNetworkStack?.cognitoIdPoolProxyApi?.url ?? '',
     }
   );
+
+  // Add explicit dependencies for RemoteOutputs
+  if (agentStack) {
+    generativeAiUseCasesStack.addDependency(agentStack);
+  }
+  if (agentCoreStack) {
+    generativeAiUseCasesStack.addDependency(agentCoreStack);
+  }
+
+  // Tag all resources for IAM principal-based cost allocation
+  // This replaces Application Inference Profiles for Bedrock cost tracking
+  const appName = `genu${params.env}`;
+  cdk.Tags.of(generativeAiUseCasesStack).add('app', appName);
+  if (agentCoreStack) {
+    cdk.Tags.of(agentCoreStack).add('app', appName);
+  }
+  if (researchAgentCoreStack) {
+    cdk.Tags.of(researchAgentCoreStack).add('app', appName);
+  }
+  if (agentStack) {
+    cdk.Tags.of(agentStack).add('app', appName);
+  }
 
   cdk.Aspects.of(generativeAiUseCasesStack).add(
     new DeletionPolicySetter(cdk.RemovalPolicy.DESTROY)
   );
 
-  const dashboardStack = updatedParams.dashboard
+  const dashboardStack = params.dashboard
     ? new DashboardStack(
         app,
-        `GenerativeAiUseCasesDashboardStack${updatedParams.env}`,
+        `GenerativeAiUseCasesDashboardStack${params.env}`,
         {
           env: {
-            account: updatedParams.account,
-            region: updatedParams.modelRegion,
+            account: params.account,
+            region: params.modelRegion,
           },
-          params: updatedParams,
+          params: params,
           userPool: generativeAiUseCasesStack.userPool,
           userPoolClient: generativeAiUseCasesStack.userPoolClient,
-          appRegion: updatedParams.region,
+          appRegion: params.region,
           crossRegionReferences: true,
         }
       )
@@ -283,7 +244,7 @@ export const createStacks = (app: cdk.App, params: ProcessedStackInput) => {
     cloudFrontWafStack,
     ragKnowledgeBaseStack,
     agentStack,
-    guardrail,
+    guardrailStack,
     agentCoreStack,
     generativeAiUseCasesStack,
     dashboardStack,

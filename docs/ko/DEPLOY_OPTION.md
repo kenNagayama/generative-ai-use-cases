@@ -246,8 +246,9 @@ npx -w packages/cdk cdk bootstrap --region us-east-1
 1. [Knowledge Base 콘솔](https://console.aws.amazon.com/bedrock/home#/knowledge-bases) 열기
 2. generative-ai-use-cases-jp 클릭
 3. s3-data-source를 선택하고 Sync 클릭
+4. web-crawler-data-source를 선택하고 Sync 클릭
 
-Status가 Available이 되면 프로세스가 완료됩니다. S3에 저장된 파일이 수집되어 Knowledge Base를 통해 검색할 수 있습니다.
+각 데이터 소스의 Status가 Available이 되면 프로세스가 완료됩니다. S3에 저장된 파일과 Web Crawler로 가져온 웹 페이지가 수집되어 Knowledge Base를 통해 검색할 수 있습니다.
 
 > [!NOTE]
 > RAG Chat (Knowledge Base)를 활성화한 후 다시 비활성화하려면 `ragKnowledgeBaseEnabled: false`로 설정하고 재배포합니다. 이렇게 하면 RAG Chat (Knowledge Base)가 비활성화되지만 `RagKnowledgeBaseStack` 자체는 남아있습니다. 완전히 제거하려면 관리 콘솔을 열고 modelRegion의 CloudFormation에서 `RagKnowledgeBaseStack` 스택을 삭제하세요.
@@ -337,7 +338,7 @@ chunkingConfiguration: {
 
 RagKnowledgeBaseStack 삭제와 함께 **RAG 채팅용 S3 버킷과 그 안에 저장된 RAG 파일이 삭제됩니다**.
 S3 버킷에 RAG 파일을 업로드한 경우 백업하고 재배포 후 다시 업로드하세요.
-또한 앞서 언급한 단계에 따라 데이터 소스를 다시 동기화하세요.
+또한 앞서 언급한 단계에 따라 데이터 소스 (s3-data-source, web-crawler-data-source)를 다시 동기화하세요.
 
 #### 관리 콘솔에서 OpenSearch Service 인덱스 확인 방법
 
@@ -398,6 +399,34 @@ const envs: Record<string, Partial<StackInput>> = {
 {
   "context": {
     "agentEnabled": true
+  }
+}
+```
+
+#### 에이전트 기반 모델 사용자 정의
+
+Code Interpreter 및 Search Agent에서 사용하는 기반 모델을 사용자 정의할 수 있습니다. 기본적으로 `global.anthropic.claude-sonnet-4-6`이 사용됩니다.
+
+- `agentFoundationModel` : 에이전트에 사용할 모델을 지정합니다. Bedrock Agent가 지원하는 모델만 사용할 수 있습니다.
+
+**[parameter.ts](/packages/cdk/parameter.ts) 편집**
+
+```typescript
+// parameter.ts
+const envs: Record<string, Partial<StackInput>> = {
+  dev: {
+    agentFoundationModel: 'global.anthropic.claude-sonnet-4-6',
+  },
+};
+```
+
+**[packages/cdk/cdk.json](/packages/cdk/cdk.json) 편집**
+
+```json
+// cdk.json
+{
+  "context": {
+    "agentFoundationModel": "global.anthropic.claude-sonnet-4-6"
   }
 }
 ```
@@ -567,6 +596,44 @@ const envs: Record<string, Partial<StackInput>> = {
   }
 }
 ```
+
+### 리서치 에이전트 유스케이스 활성화
+
+리서치 에이전트는 웹 검색 및 AWS 문서 검색을 활용한 고급 리서치 기능을 제공합니다.
+
+#### 전제 조건
+
+- **Brave Search API 키 (필수)**: AWS Marketplace에서 획득
+- **Tavily API 키 (선택 사항)**: 추가 검색 기능을 사용하는 경우
+
+> [!TIP]
+> Brave Search API 키 획득 방법은 [리서치 에이전트 배포 가이드](./DEPLOY_RESEARCH_USECASE.md)를 참조하세요.
+
+#### parameter.ts 설정 예시
+
+```typescript
+const envs: Record<string, Partial<StackInput>> = {
+  dev: {
+    researchAgentEnabled: true,
+    researchAgentBraveApiKey: 'YOUR_BRAVE_API_KEY',
+    researchAgentTavilyApiKey: '', // 선택 사항
+  },
+};
+```
+
+#### cdk.json 설정 예시
+
+```json
+{
+  "context": {
+    "researchAgentEnabled": true,
+    "researchAgentBraveApiKey": "YOUR_BRAVE_API_KEY",
+    "researchAgentTavilyApiKey": ""
+  }
+}
+```
+
+자세한 절차는 [리서치 에이전트 배포 가이드](./DEPLOY_RESEARCH_USECASE.md)를 참조하세요.
 
 ### MCP Chat 사용 사례 활성화
 
@@ -752,6 +819,67 @@ const envs: Record<string, Partial<StackInput>> = {
   }
 }
 ```
+
+> [!NOTE]
+> AgentCore 사용 사례 설정을 활성화한 후 다시 비활성화하려면 `createGenericAgentCoreRuntime: false`로 설정하고 재배포하면 AgentCore 사용 사례가 비활성화되지만 `AgentCoreStack` 자체는 남아있습니다. 관리 콘솔을 열고 `agentCoreRegion`의 CloudFormation에서 `AgentCoreStack` 스택을 삭제하여 완전히 제거할 수 있습니다.
+
+#### AgentCore Runtime 네트워크 설정
+
+AgentCore Runtime은 다음 네트워크 모드에서 작동할 수 있습니다:
+
+- `PUBLIC` (기본값): 퍼블릭 네트워크에서 작동
+- `PRIVATE`: VPC 내 프라이빗 네트워크에서 작동
+
+네트워크 설정은 Generic Runtime과 AgentBuilder Runtime 모두에 적용됩니다.
+
+**VPC 모드 사용 사례**:
+
+- AgentCore Runtime에서 사내 시스템이나 프라이빗 데이터베이스에 액세스해야 하는 경우
+- 예를 들어, VPC 내의 다른 AWS 서비스(RDS, ElastiCache 등)와 직접 통신하고 싶은 경우
+
+VPC 모드를 사용할 때는 다음 매개변수를 설정하세요:
+
+- `agentCoreVpcId`: 사용할 VPC ID
+- `agentCoreSubnetIds`: 사용할 서브넷 ID 목록
+
+> [!NOTE]
+> `agentCoreVpcId`와 `agentCoreSubnetIds`를 모두 설정하면 AgentCore Runtime이 프라이빗 네트워크 모드로 배포됩니다. 둘 다 미설정(`null`)인 경우 퍼블릭 네트워크 모드로 배포됩니다.
+
+> [!IMPORTANT]
+> **가용 영역(AZ) 지원**: AgentCore Runtime은 리전별로 지원되는 AZ가 제한되어 있습니다. 서브넷은 반드시 지원되는 AZ 내에 배치해야 합니다. 자세한 내용은 [AWS 공식 문서](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agentcore-vpc.html#agentcore-supported-azs)를 확인하세요.
+>
+> **인터넷 액세스**: AgentCore Runtime에서 MCP 서버 설치에는 인터넷 액세스가 필요합니다. 프라이빗 서브넷이 연결 대상인 경우 NAT Gateway 등 인터넷 도달 경로를 설정하세요.
+
+**[parameter.ts](/packages/cdk/parameter.ts) 편집**
+
+```typescript
+// parameter.ts
+const envs: Record<string, Partial<StackInput>> = {
+  dev: {
+    createGenericAgentCoreRuntime: true,
+    agentBuilderEnabled: true,
+    agentCoreVpcId: 'vpc-xxxxxxxxx',
+    agentCoreSubnetIds: ['subnet-xxxxxxxxx', 'subnet-yyyyyyyyy'],
+  },
+};
+```
+
+**[packages/cdk/cdk.json](/packages/cdk/cdk.json) 편집**
+
+```json
+// cdk.json
+{
+  "context": {
+    "createGenericAgentCoreRuntime": true,
+    "agentBuilderEnabled": true,
+    "agentCoreVpcId": "vpc-xxxxxxxxx",
+    "agentCoreSubnetIds": ["subnet-xxxxxxxxx", "subnet-yyyyyyyyy"]
+  }
+}
+```
+
+> [!WARNING]
+> VPC 모드를 사용할 때, 예를 들어 PRIVATE에서 PUBLIC으로의 변경으로 인해 AgentCore Runtime 삭제 시 보안 그룹이 자동 삭제되지 않습니다. AgentCore Runtime이 생성하는 AWS 관리형 ENI가 보안 그룹을 참조하기 때문에 CloudFormation에서는 삭제할 수 없습니다. AgentCore Runtime 삭제 후 관리형 ENI가 자동 삭제될 때까지 기다린 다음 수동으로 보안 그룹을 삭제하세요. 삭제가 필요한 보안 그룹 ID는 CloudFormation 출력에 표시됩니다.
 
 ### Voice Chat 사용 사례 활성화
 
